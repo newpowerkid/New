@@ -1,0 +1,468 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator prismabox { 
+  provider = "prismabox"
+  typeboxImportDependencyName = "elysia"
+  typeboxImportVariableName = "t"
+  inputModel = true
+  output   = "../generated/prismabox"
+}
+
+// ===================== Enums =====================
+
+enum UserRole {
+  ADMIN
+  USER
+  CUSTOMER
+  OWNER
+}
+
+enum Title {
+  MR
+  MS
+  MRS
+  MISS
+  MASTER
+}
+
+enum KidTitle {
+  MISS
+  MASTER
+}
+
+enum KidType {
+  MEMBERSHIP
+  LIFETIME
+  SP
+  TRIAL
+  PRIVATE
+  BD
+  MEMBERSHIPEXPIRED
+}
+
+enum Nationality {
+  Thai
+  Japanese
+  Korean
+  Indian
+  Chinese
+  OtherAsian
+  Australian
+  Israel
+  Europe
+  Africa
+  SouthAmerica
+  NorthAmerica
+}
+
+enum SocialMedia {
+  YES
+  NO
+}
+
+enum OpenForm {
+  OPEN
+  OPENKID
+  CLOSE
+}
+
+enum Status {
+  Pending
+  Cancel
+  Confirm
+}
+
+enum ClassName {
+  Bugs
+  Birds
+  Beasts
+  SuperBeasts
+  FunnyBugs
+  GiggleWorms
+  GoodFriends
+  FlipsHotshots
+}
+
+enum Days {
+  Monday
+  Tuesday
+  Wednesday
+  Thursday
+  Friday
+  Saturday
+  Sunday
+}
+
+enum PaidBy {
+  Credit
+  Cash
+  Cheque
+}
+
+enum CategoryPrice {
+  Membership
+  Lessons
+  Etc
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  QR_CODE
+  BANK_TRANSFER
+  E_WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PROCESSING
+  EXPIRED
+}
+
+// ========== Authentication Models ==========
+
+model Authenticator {
+  id           String @id @default(cuid())
+  userId       String
+  credentialID String
+  counter      Int
+  user         User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map(name: "authenticator")
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?  @db.Text
+  session_state     String?
+  createdAt         DateTime @default(now()) @map(name: "created_at")
+  updatedAt         DateTime @default(now()) @map(name: "updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  password              String?
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map(name: "accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+
+  @@index([userId])
+  @@map(name: "sessions")
+  @@unique([token])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map(name: "verification_tokens")
+}
+
+// ===================== Models =====================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  title         Title?
+  firstName     String?
+  lastName      String?
+  address       String?
+  mobile        String?
+  role          UserRole  @default(USER)
+  openForm      OpenForm  @default(CLOSE)
+  createdAt     DateTime  @default(now()) @map(name: "created_at")
+  updatedAt     DateTime  @default(now()) @map(name: "updated_at")
+
+  accounts      Account[]
+  sessions      Session[]
+  kids          UserKid[]
+  authenticator Authenticator[]
+
+  // สำหรับ User
+  // สำหรับ Payment, Booking
+  // กรณีค้นหาชื่อ
+  @@index([email])
+  @@index([createdAt])
+  @@index([name, firstName, lastName])
+  @@map(name: "users")
+}
+
+model Kid {
+  id          String       @id @default(cuid())
+  studentId   String?
+  nickName    String?
+  identity    String?
+  title       KidTitle     @default(MISS)
+  firstName   String?
+  lastName    String?
+  birthDay    DateTime?
+  comment     String?
+  nationality Nationality?
+  socialMedia SocialMedia  @default(YES)
+  kidType     KidType      @default(SP)
+  createdAt   DateTime     @default(now()) @map(name: "created_at")
+  updatedAt   DateTime     @default(now()) @map(name: "updated_at")
+
+  users       UserKid[]
+  bill        Bill[]
+  BookingBill BookingBill[]
+  Booking     Booking[]
+
+  @@map(name: "kid")
+}
+
+model UserKid {
+  id     String  @id @default(cuid())
+  userId String?
+  kidId  String?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  kid  Kid?  @relation(fields: [kidId], references: [id], onDelete: SetNull)
+
+  @@map(name: "user_kid")
+}
+
+// ========== Other Models ==========
+
+model Banner {
+  id          String  @id @default(uuid())
+  title       String?
+  imageString String
+  description String?
+
+  createdAt DateTime @default(now())
+}
+
+model Schedule {
+  id          String    @id @default(uuid())
+  classesName ClassName @default(Bugs)
+  ages        String?
+  monday      String?
+  tuesday     String?
+  wednesday   String?
+  thursday    String?
+  friday      String?
+  saturday    String?
+  sunday      String?
+  days        Days      @default(Monday)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @map(name: "updated_at")
+}
+
+model Booking {
+  id            String   @id @default(cuid())
+  kidId         String?
+  bookingBillId String?
+  use           Boolean?
+  comment       String?
+  dateBooking   DateTime
+  timeBooking   String?
+  classBooking  String?
+  status        Status   @default(Pending)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now())
+
+  kid         Kid?         @relation(fields: [kidId], references: [id], onDelete: Cascade)
+  bookingBill BookingBill? @relation(fields: [bookingBillId], references: [id], onDelete: Cascade)
+
+  @@index([kidId])
+  @@index([bookingBillId])
+  @@map(name: "booking")
+}
+
+model BookingBill {
+  id               String    @id @default(cuid())
+  kidId            String
+  priceId          String
+  billId           String
+  remainingLessons Int?      @default(0)
+  expiryDate       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now())
+
+  kid      Kid       @relation(fields: [kidId], references: [id], onDelete: Cascade)
+  price    Price     @relation(fields: [priceId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+  bill     Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@unique([billId, priceId])
+  @@index([kidId])
+  @@map(name: "booking_bill")
+}
+
+model Price {
+  id             String        @id @default(cuid())
+  list           String?
+  noLessons      Int?
+  checkbox       Boolean
+  price          Float?
+  durationMonths Int?
+  unlimited      Boolean?
+  categoryPrice  CategoryPrice @default(Etc)
+  createdAt      DateTime      @default(now()) @map(name: "created_at")
+  updatedAt      DateTime      @default(now()) @map(name: "updated_at")
+  bill           BillPrice[]
+  BookingBill    BookingBill[]
+
+  @@map(name: "price")
+}
+
+model BillPrice {
+  id           String    @id @default(cuid())
+  billId       String
+  priceId      String
+  quantity     Int       @default(1)
+  plusAndMinus Int?
+  discountPct  Float?    @default(0.0) // ส่วนลดเป็นเปอร์เซ็นต์ เช่น 0.10 หมายถึง 10%
+  discountAmt  Float?    @default(0.0) // ส่วนลดเป็นจำนวนเงิน เช่น 100.00
+  startDate    DateTime? // วันเริ่มต้น  
+  expiryDate   DateTime? // วันหมดอายุ
+  bill         Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+  price        Price     @relation(fields: [priceId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now()) @map(name: "created_at")
+  updatedAt    DateTime  @default(now()) @map(name: "updated_at")
+
+  @@unique([billId, priceId])
+  @@map(name: "bill_price")
+}
+
+model Bill {
+  id        String   @id @default(cuid())
+  kidId     String?
+  paidBy    PaidBy   @default(Cash)
+  reportId  String?
+  classBill String?
+  isPaid    Boolean  @default(false) // ✅ เพิ่มสถานะว่าจ่ายครบหรือยัง
+  totalPaid Float    @default(0.0) // ✅ เก็บยอดที่จ่ายแล้ว
+  comment   String?
+  createdAt DateTime @default(now()) @map(name: "created_at")
+  updatedAt DateTime @default(now()) @map(name: "updated_at")
+
+  kid         Kid?          @relation(fields: [kidId], references: [id], onDelete: Cascade)
+  bill        ReportBill[]
+  price       BillPrice[]
+  BookingBill BookingBill[]
+  payments    Payment[]
+
+  @@map(name: "bill")
+}
+
+model Report {
+  id           String   @id @default(cuid())
+  type         String // "daily", "weekly", "monthly"
+  date         DateTime // วันที่ที่สร้าง report
+  totalIncome  Float // ยอดรวมรายรับ
+  totalExpense Float? // ถ้ามีค่าใช้จ่าย
+  createdAt    DateTime @default(now())
+
+  resport ReportBill[]
+
+  @@map(name: "report")
+}
+
+model ReportBill {
+  id       String @id @default(cuid())
+  reportId String
+  billId   String
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  bill   Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, billId])
+  @@map(name: "report_bill")
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  billId         String
+  amount         Float // จำนวนเงินที่จ่าย
+  method         PaidBy        @default(Cash) // วิธีชำระเงิน (Credit, Cash, Cheque, PromptPay)
+  status         PaymentStatus @default(PENDING) // สถานะการจ่ายเงิน
+  transactionId  String? // ใช้กรณีจ่ายผ่าน Online Payment Gateway
+  paymentGateway String? // เช่น "Omise", "Stripe", "SCB"
+  paidAt         DateTime? // เวลาที่ชำระเงินจริง
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now()) @updatedAt
+
+  // ข้อมูลเพิ่มเติมสำหรับบัตรเครดิต
+  cardLast4       String? // 4 หลักสุดท้ายของบัตร
+  cardBrand       String? // Visa, MasterCard, AMEX ฯลฯ
+  authorizationId String? // ID อ้างอิงที่ Payment Gateway
+
+  // ข้อมูลเพิ่มเติมสำหรับ PromptPay
+  qrCode          String? // QR Code URL หรือข้อมูลที่ใช้แสดง
+  referenceNumber String? // หมายเลขอ้างอิงการโอนเงิน
+
+  bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@index([billId])
+  @@map(name: "payment")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
